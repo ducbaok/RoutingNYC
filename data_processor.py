@@ -108,3 +108,69 @@ if __name__ == '__main__':
             median_hr_test, median_dow_test = calculate_median_speed_by_time(manhattan_trips_test)
             print("\nMedian speed by hour (test):\n", median_hr_test)
             print("\nMedian speed by day of week (test):\n", median_dow_test)
+
+
+def create_ml_training_data(df_borough_trips):
+    """
+    Tạo dữ liệu huấn luyện cho mô hình ML dự đoán tốc độ trung vị theo Zone, Giờ, Ngày.
+    Features: PULocationID, pickup_hour, pickup_day_of_week
+    Target: median_average_speed_mph
+    """
+    if df_borough_trips is None or df_borough_trips.empty or 'average_speed_mph' not in df_borough_trips.columns:
+        print("Cảnh báo: Không có dữ liệu chuyến đi của quận hoặc thiếu cột 'average_speed_mph' để tạo dữ liệu ML.")
+        return pd.DataFrame() # Trả về DataFrame rỗng
+
+    df_ml = df_borough_trips.copy()
+
+    # Đảm bảo các cột thời gian đã được trích xuất
+    if 'pickup_hour' not in df_ml.columns:
+        df_ml['pickup_hour'] = pd.to_datetime(df_ml['tpep_pickup_datetime']).dt.hour
+    if 'pickup_day_of_week' not in df_ml.columns: # Monday=0, Sunday=6
+        df_ml['pickup_day_of_week'] = pd.to_datetime(df_ml['tpep_pickup_datetime']).dt.dayofweek
+
+    # Tính tốc độ trung vị cho mỗi nhóm (ZoneID, Giờ, Ngày trong tuần)
+    # Đây sẽ là target 'y' của chúng ta
+    df_zone_hourly_daily_speed = df_ml.groupby(
+        ['PULocationID', 'pickup_hour', 'pickup_day_of_week']
+    )['average_speed_mph'].median().reset_index()
+    
+    # Đổi tên cột target cho rõ ràng
+    df_zone_hourly_daily_speed.rename(columns={'average_speed_mph': 'target_median_speed_mph'}, inplace=True)
+
+    # Loại bỏ các dòng có target là NaN (nếu có, ví dụ do nhóm đó không có dữ liệu average_speed_mph hợp lệ)
+    df_zone_hourly_daily_speed.dropna(subset=['target_median_speed_mph'], inplace=True)
+    
+    print(f"Đã tạo được {len(df_zone_hourly_daily_speed)} mẫu dữ liệu huấn luyện ML.")
+    
+    # Các cột PULocationID, pickup_hour, pickup_day_of_week sẽ là features X
+    # Cột target_median_speed_mph sẽ là target y
+    return df_zone_hourly_daily_speed
+
+if __name__ == '__main__':
+    # ... (phần test cũ) ...
+    # Thêm test cho hàm mới
+    from data_loader import load_taxi_zones, load_taxi_trip_data # Cần import lại nếu chạy file này độc lập
+    
+    zones_gdf_test = load_taxi_zones()
+    if zones_gdf_test is not None:
+        _, manhattan_ids_test = filter_taxi_zones_by_borough(zones_gdf_test)
+
+        raw_taxi_data_test = load_taxi_trip_data()
+        if raw_taxi_data_test is not None:
+            cleaned_taxi_data_test = initial_trip_data_cleaning(raw_taxi_data_test)
+            
+            if cleaned_taxi_data_test is not None and not cleaned_taxi_data_test.empty and manhattan_ids_test:
+                manhattan_trips_test = filter_trips_by_location_ids(cleaned_taxi_data_test, manhattan_ids_test)
+                if not manhattan_trips_test.empty:
+                    # median_hr_test, median_dow_test = calculate_median_speed_by_time(manhattan_trips_test)
+                    # print("\nMedian speed by hour (test):\n", median_hr_test)
+                    # print("\nMedian speed by day of week (test):\n", median_dow_test)
+                    
+                    ml_data_test = create_ml_training_data(manhattan_trips_test)
+                    if not ml_data_test.empty:
+                        print("\nDữ liệu huấn luyện ML (5 dòng đầu):")
+                        print(ml_data_test.head())
+                        print("\nThông tin dữ liệu ML:")
+                        ml_data_test.info()
+                        print("\nThống kê mô tả target:")
+                        print(ml_data_test['target_median_speed_mph'].describe())

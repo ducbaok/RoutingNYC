@@ -39,3 +39,7 @@ ROAD_TYPE_SPEED_MODIFIERS = {
     'road': 0.8,            # Loại chung chung, nếu có
     'default': 0.7          # Hệ số mặc định cho các loại đường không có trong danh sách
 }
+
+
+MODEL_PATH = "trained_rf_model.joblib"
+PREPROCESSOR_PATH = "data_preprocessor.joblib"
